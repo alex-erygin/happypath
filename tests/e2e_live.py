@@ -168,7 +168,7 @@ def main() -> None:
             check(page.locator("#icon img").count() == 1, "selected raster moon demon is rendered")
             check(page.locator("#icon img").evaluate("img => img.complete && img.naturalWidth === 256"), "moon demon asset loads at full resolution")
             icon_size = page.locator("#icon img").evaluate("img => [img.getBoundingClientRect().width, img.getBoundingClientRect().height]")
-            check(icon_size == [33, 33], "portrait is enlarged by about 30 percent")
+            check(icon_size == [36, 36], "portrait receives another roughly 10 percent enlargement")
             check(page.locator("#sub-line").evaluate("el => el.scrollWidth <= el.clientWidth"), "subtitle is not clipped after enlarging portrait")
             check(page.locator("body").evaluate("el => el.scrollWidth <= el.clientWidth"), "enlarged portrait causes no horizontal overflow")
             check(page.locator("#icon svg").count() == 0, "no SVG or text glyph replaces the raster portrait")

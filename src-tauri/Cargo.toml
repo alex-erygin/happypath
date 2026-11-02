@@ -1,6 +1,6 @@
 [package]
 name = "happypath"
-version = "0.1.4"
+version = "0.1.5"
 description = "HappyPath — Лунный рубеж: taskbar focus timer with persistent statistics"
 edition = "2021"
 
