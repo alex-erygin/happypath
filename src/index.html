@@ -7,26 +7,15 @@
 *{margin:0;padding:0;box-sizing:border-box}html,body{background:transparent;overflow:hidden}body{font-family:"Segoe UI",system-ui,sans-serif;user-select:none;-webkit-user-select:none;cursor:pointer}
 #widget{position:relative;width:250px;height:48px;display:grid;grid-template-columns:25px 1fr auto;align-items:center;gap:8px;padding:0 11px 2px;border-radius:8px;background:var(--idle);border:1px solid transparent;text-shadow:0 1px 3px rgba(0,0,0,.78);transition:background .25s ease}
 #widget.running{background:var(--run);border-color:rgba(255,199,106,.35)}#widget.paused{background:var(--pause);border-color:rgba(255,255,255,.18)}#widget.completed{background:var(--done);border-color:rgba(255,199,106,.55)}
-#icon{width:25px;height:25px;display:grid;place-items:center}#icon svg{width:25px;height:25px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}#main-line{font-size:15px;font-weight:650;color:var(--fg);letter-spacing:.15px;white-space:nowrap}#sub-line{font-size:10px;color:rgba(245,242,233,.82);white-space:nowrap;margin-top:1px}.running #main-line{color:var(--gold);font-variant-numeric:tabular-nums}.completed #main-line{color:#fff2c9}
+#icon{width:25px;height:25px;display:grid;place-items:center}#icon img{width:25px;height:25px;display:block;object-fit:cover;border-radius:7px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}#main-line{font-size:15px;font-weight:650;color:var(--fg);letter-spacing:.15px;white-space:nowrap}#sub-line{font-size:10px;color:rgba(245,242,233,.82);white-space:nowrap;margin-top:1px}.running #main-line{color:var(--gold);font-variant-numeric:tabular-nums}.completed #main-line{color:#fff2c9}
 #week{display:flex;gap:4px;padding-bottom:1px}.day{width:6px;height:6px;border-radius:2px;background:rgba(255,255,255,.22)}.day.won{background:var(--gold);box-shadow:0 0 7px rgba(255,199,106,.55)}
 #progress{position:absolute;left:8px;right:8px;bottom:3px;height:2px;border-radius:2px;background:transparent;overflow:hidden}#fill{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .2s linear}
 </style>
 </head>
 <body>
 <div id="widget" data-status="idle" title="HappyPath — Лунный рубеж">
-  <div id="icon" aria-hidden="true">
-    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-      <path d="M6.2 13.5 5.1 4.3Q5 2.4 6.8 3.3l6 3.8q3.2-1.2 6.4 0l6-3.8q1.8-.9 1.7 1l-1.1 9.2q1.8 3.2.4 7.1C24.7 26.2 20.5 29 16 29S7.3 26.2 5.8 20.6q-1.4-3.9.4-7.1Z" fill="#ffd58a" stroke="#654523" stroke-width="1.2" stroke-linejoin="round"/>
-      <path d="m7.2 6.2 4.3 2.8-3.8 3.1Zm17.6 0-4.3 2.8 3.8 3.1Z" fill="#f3a6a0"/>
-      <ellipse cx="11.7" cy="16.2" rx="1.6" ry="2" fill="#382b25"/>
-      <ellipse cx="20.3" cy="16.2" rx="1.6" ry="2" fill="#382b25"/>
-      <circle cx="12.2" cy="15.5" r=".45" fill="#fff"/>
-      <circle cx="20.8" cy="15.5" r=".45" fill="#fff"/>
-      <path d="m14.4 20 1.6-1 1.6 1-1.6 1.4Z" fill="#d77f79" stroke="#654523" stroke-width=".6" stroke-linejoin="round"/>
-      <path d="M16 21.3v1.4m0 0q-2.5 2.5-4.2.2m4.2-.2q2.5 2.5 4.2.2M9.2 19.2l-5-1m5 2.7-5 .7m18.6-2.4 5-1m-5 2.7 5 .7" fill="none" stroke="#654523" stroke-width="1" stroke-linecap="round"/>
-    </svg>
-  </div>
-  <div id="text"><div id="main-line">20:00</div><div id="sub-line">Луна · нажми — старт</div></div>
+  <div id="icon" aria-hidden="true"><img src="./assets/moon-demon.webp" alt="" width="25" height="25"></div>
+  <div id="text"><div id="main-line">20:00</div><div id="sub-line">Нет времени на раскачку</div></div>
   <div id="week" aria-label="Прогресс рабочей недели"><span class="day"></span><span class="day"></span><span class="day"></span><span class="day"></span><span class="day"></span></div>
   <div id="progress"><div id="fill"></div></div>
 </div>
@@ -41,7 +30,7 @@ function render(s){
   fill.style.width=Math.max(0,Math.min(100,s.progress*100))+'%';
   const mins=Math.floor(s.duration_seconds/60),goal=mins>0?mins+' мин':s.duration_seconds+' сек';
   const elapsed=s.duration_seconds>=60?Math.floor(s.elapsed_seconds/60)+'/'+mins+' мин':Math.floor(s.elapsed_seconds)+'/'+s.duration_seconds+' сек';
-  if(s.status==='idle'){mainLine.textContent=fmt(s.remaining_seconds);subLine.textContent='Луна · нажми — старт'}
+  if(s.status==='idle'){mainLine.textContent=fmt(s.remaining_seconds);subLine.textContent='Нет времени на раскачку'}
   else if(s.status==='running'){mainLine.textContent=fmt(s.remaining_seconds);subLine.textContent=elapsed+' · фокус'}
   else if(s.status==='paused'){mainLine.textContent=fmt(s.remaining_seconds);subLine.textContent='пауза · нажми — продолжить'}
   else{mainLine.textContent='Рубеж взят';subLine.textContent='+'+goal+' · нажми — ещё раз'}

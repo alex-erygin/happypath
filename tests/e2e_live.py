@@ -165,8 +165,10 @@ def main() -> None:
             check(page.locator("#widget").get_attribute("data-status") == "idle", "initial state is idle")
             check(page.locator("#main-line").inner_text() == "00:03", "test duration comes from isolated config")
             check("0 сессий" in page.locator("#widget").get_attribute("title"), "initial all-time counter is zero")
-            check(page.locator("#icon svg").count() == 1, "cat face is rendered instead of moon icon")
-            check("☾" not in page.locator("body").inner_text(), "moon icon is absent")
+            check(page.locator("#icon img").count() == 1, "selected raster moon demon is rendered")
+            check(page.locator("#icon img").evaluate("img => img.complete && img.naturalWidth === 256"), "moon demon asset loads at full resolution")
+            check(page.locator("#icon svg").count() == 0, "no SVG or text glyph replaces the raster portrait")
+            check(page.locator("#sub-line").inner_text() == "Нет времени на раскачку", "requested idle subtitle is shown")
             check(page.locator("#progress").evaluate("el => getComputedStyle(el).backgroundColor") == "rgba(0, 0, 0, 0)", "gray progress track is transparent")
 
             page.locator("#widget").click()
@@ -183,7 +185,7 @@ def main() -> None:
             page.locator('#widget[data-status="running"]').wait_for(timeout=5_000)
             page.locator('#widget[data-status="completed"]').wait_for(timeout=8_000)
             check(page.locator("#main-line").inner_text() == "Рубеж взят", "timer reaches daily milestone")
-            check(page.locator("#icon svg").count() == 1, "cat face remains in completed state")
+            check(page.locator("#icon img").count() == 1, "moon demon remains in completed state")
             check(page.locator(".day.won").count() == 1, "completed day fills one weekday segment")
             check("1 сессия" in page.locator("#widget").get_attribute("title"), "all-time counter increments")
 
