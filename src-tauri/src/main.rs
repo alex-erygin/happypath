@@ -86,7 +86,9 @@ fn make_tool_window(win: &tauri::WebviewWindow) {
 fn widget_position_near_tray(win_w: i32, win_h: i32) -> Option<(i32, i32)> {
     use windows::core::w;
     use windows::Win32::Foundation::{HWND, RECT};
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowExW, FindWindowW, GetWindowRect};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowExW, FindWindowW, GetWindowRect, IsIconic, IsWindowVisible,
+    };
 
     unsafe {
         let tray = FindWindowW(w!("Shell_TrayWnd"), None).ok()?;
@@ -97,7 +99,22 @@ fn widget_position_near_tray(win_w: i32, win_h: i32) -> Option<(i32, i32)> {
         let mut nrc: RECT = std::mem::zeroed();
         GetWindowRect(notify, &mut nrc).ok()?;
         // Физические пиксели. Зазор сохраняет кликабельной стрелку скрытых значков.
-        let x = nrc.left - win_w - 108;
+        let mut right_edge = nrc.left - 108;
+        // Hunger Timer использует ту же опорную точку у трея. Если он запущен,
+        // ставим HappyPath левее него, иначе оба always-on-top виджета перекрываются
+        // и их сторожки Z-порядка начинают бороться за одну и ту же область.
+        if let Ok(hunger) = FindWindowW(None, w!("hunger-timer")) {
+            if IsWindowVisible(hunger).as_bool() && !IsIconic(hunger).as_bool() {
+                let mut hrc: RECT = std::mem::zeroed();
+                if GetWindowRect(hunger, &mut hrc).is_ok()
+                    && hrc.bottom > trc.top
+                    && hrc.top < trc.bottom
+                {
+                    right_edge = right_edge.min(hrc.left - 12);
+                }
+            }
+        }
+        let x = right_edge - win_w;
         let y = trc.top + (trc.bottom - trc.top - win_h) / 2;
         Some((x, y))
     }
@@ -141,11 +158,16 @@ fn spawn_zorder_keeper(win: &tauri::WebviewWindow) {
                         }
                     }
                     let fullscreen = fullscreen_app_running();
+                    let visible = IsWindowVisible(hwnd).as_bool();
+                    let iconic = IsIconic(hwnd).as_bool();
                     if fullscreen && !hidden {
                         let _ = ShowWindow(hwnd, SW_HIDE);
                         hidden = true;
-                    } else if !fullscreen && hidden {
-                        let _ = ShowWindow(hwnd, SW_SHOWNA);
+                    } else if !fullscreen && (hidden || !visible || iconic) {
+                        // Клик по таскбару может не только поднять панель над виджетом,
+                        // но и скрыть/свернуть его. Возвращаем окно без активации,
+                        // иначе проверка WindowFromPoint сама по себе его не восстановит.
+                        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
                         hidden = false;
                     }
                     if !hidden {

@@ -3,4 +3,6 @@ src-tauri/target/
 src-tauri/gen/
 *.log
 *.tmp
+__pycache__/
+*.pyc
 .DS_Store
