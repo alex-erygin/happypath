@@ -57,6 +57,105 @@ fn open_folder(path: &Path) {
 #[cfg(not(windows))]
 fn open_folder(_path: &Path) {}
 
+/// Автозапуск с Windows через HKCU\...\CurrentVersion\Run.
+/// Тесты либо отключают операции с реестром полностью, либо используют своё имя значения.
+#[cfg(windows)]
+mod autostart {
+    use windows::core::{w, PCWSTR};
+    use windows::Win32::System::Registry::*;
+
+    fn tests_disabled() -> bool {
+        std::env::var_os("HAPPYPATH_DISABLE_AUTOSTART").is_some()
+    }
+
+    fn value_name() -> Vec<u16> {
+        let name = if std::env::var_os("HAPPYPATH_DATA_DIR").is_some() {
+            std::env::var("HAPPYPATH_AUTOSTART_VALUE").unwrap_or_else(|_| "HappyPath".to_string())
+        } else {
+            "HappyPath".to_string()
+        };
+        name.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    fn enabled_value(name: &[u16]) -> bool {
+        unsafe {
+            let mut key = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+                Some(0),
+                KEY_READ,
+                &mut key,
+            )
+            .is_err()
+            {
+                return false;
+            }
+            let mut size = 0u32;
+            let result = RegQueryValueExW(
+                key,
+                PCWSTR(name.as_ptr()),
+                None,
+                None,
+                None,
+                Some(&mut size),
+            );
+            let _ = RegCloseKey(key);
+            result.is_ok()
+        }
+    }
+
+    fn set_value(enable: bool, name: &[u16], exe: &std::path::Path) {
+        unsafe {
+            let mut key = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+                Some(0),
+                KEY_WRITE,
+                &mut key,
+            )
+            .is_err()
+            {
+                return;
+            }
+            if enable {
+                let path = exe.to_string_lossy();
+                let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+                let bytes: &[u8] =
+                    std::slice::from_raw_parts(wide.as_ptr() as *const u8, wide.len() * 2);
+                let _ = RegSetValueExW(key, PCWSTR(name.as_ptr()), Some(0), REG_SZ, Some(bytes));
+            } else {
+                let _ = RegDeleteValueW(key, PCWSTR(name.as_ptr()));
+            }
+            let _ = RegCloseKey(key);
+        }
+    }
+
+    pub fn enabled() -> bool {
+        !tests_disabled() && enabled_value(&value_name())
+    }
+
+    pub fn set(enable: bool) {
+        if tests_disabled() {
+            return;
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            set_value(enable, &value_name(), &exe);
+        }
+    }
+
+    #[cfg(test)]
+    pub fn test_round_trip(name: &[u16], exe: &std::path::Path) {
+        set_value(false, name, exe);
+        assert!(!enabled_value(name));
+        set_value(true, name, exe);
+        assert!(enabled_value(name));
+        set_value(false, name, exe);
+        assert!(!enabled_value(name));
+    }
+}
+
 /// Tool window не сворачивается по Win+D / «Показать рабочий стол».
 #[cfg(windows)]
 fn make_tool_window(win: &tauri::WebviewWindow) {
@@ -247,6 +346,13 @@ fn main() {
             }
         }))
         .setup(|app| {
+            // Как в Hunger Timer: автозапуск включён по умолчанию, путь обновляется
+            // при каждом старте, а явный отказ пользователя сохраняется в config.json.
+            #[cfg(windows)]
+            if !stats::autostart_disabled(&stats::data_dir()) {
+                autostart::set(true);
+            }
+
             if let Some(win) = app.get_webview_window("main") {
                 #[cfg(windows)]
                 let positioned = if let Ok(size) = win.outer_size() {
@@ -294,7 +400,19 @@ fn main() {
             let open =
                 MenuItem::with_id(app, "open", "Открыть папку статистики", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
+            #[cfg(windows)]
+            let autostart_item = {
+                use tauri::menu::CheckMenuItemBuilder;
+                CheckMenuItemBuilder::with_id("autostart", "Автозапуск с Windows")
+                    .checked(autostart::enabled())
+                    .build(app)?
+            };
+            #[cfg(windows)]
+            let menu = Menu::with_items(app, &[&reset, &export, &open, &autostart_item, &quit])?;
+            #[cfg(not(windows))]
             let menu = Menu::with_items(app, &[&reset, &export, &open, &quit])?;
+            #[cfg(windows)]
+            let autostart_handle = autostart_item.clone();
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("HappyPath — Лунный рубеж")
@@ -322,6 +440,13 @@ fn main() {
                             open_folder(store.data_dir());
                         };
                     }
+                    #[cfg(windows)]
+                    "autostart" => {
+                        let new = !autostart::enabled();
+                        autostart::set(new);
+                        let _ = stats::set_autostart_disabled(&stats::data_dir(), !new);
+                        let _ = autostart_handle.set_checked(new);
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -330,4 +455,17 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running HappyPath");
+}
+
+#[cfg(all(test, windows))]
+mod autostart_tests {
+    #[test]
+    fn registry_round_trip_uses_isolated_value() {
+        let name: Vec<u16> = format!("HappyPath-test-{}", std::process::id())
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let exe = std::env::current_exe().unwrap();
+        super::autostart::test_round_trip(&name, &exe);
+    }
 }

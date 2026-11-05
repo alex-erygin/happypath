@@ -97,6 +97,7 @@ def launch(playwright, profile_name: str):
     port = free_port()
     env = os.environ.copy()
     env["HAPPYPATH_DATA_DIR"] = str(DATA_DIR)
+    env["HAPPYPATH_DISABLE_AUTOSTART"] = "1"
     env["HAPPYPATH_DURATION_SECONDS"] = "3"
     env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = f"--remote-debugging-port={port}"
     env["WEBVIEW2_USER_DATA_FOLDER"] = str(TEST_ROOT / profile_name)

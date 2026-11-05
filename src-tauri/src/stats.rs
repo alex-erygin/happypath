@@ -88,6 +88,23 @@ pub fn data_dir() -> PathBuf {
     PathBuf::from("happypath-data")
 }
 
+/// Явный отказ пользователя от автозапуска сохраняется между запусками.
+pub fn autostart_disabled(data_dir: &Path) -> bool {
+    fs::read_to_string(data_dir.join("config.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|value| value.get("autostart_off")?.as_bool())
+        .unwrap_or(false)
+}
+
+pub fn set_autostart_disabled(data_dir: &Path, disabled: bool) -> io::Result<()> {
+    fs::create_dir_all(data_dir)?;
+    atomic_write(
+        &data_dir.join("config.json"),
+        json!({ "autostart_off": disabled }).to_string().as_bytes(),
+    )
+}
+
 pub fn configured_duration() -> u64 {
     let test_mode = std::env::var_os("HAPPYPATH_DATA_DIR").is_some();
     let fallback = DEFAULT_DURATION_SECONDS;
@@ -581,6 +598,17 @@ mod tests {
         assert_eq!(snapshot.total_sessions, 1);
         assert_eq!(store.sessions[0].completed_at, start + Duration::seconds(1));
         assert!(!snapshot.today_completed);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn autostart_opt_out_is_persistent_and_reversible() {
+        let dir = test_dir("autostart-config");
+        assert!(!autostart_disabled(&dir));
+        set_autostart_disabled(&dir, true).unwrap();
+        assert!(autostart_disabled(&dir));
+        set_autostart_disabled(&dir, false).unwrap();
+        assert!(!autostart_disabled(&dir));
         fs::remove_dir_all(dir).unwrap();
     }
 }
