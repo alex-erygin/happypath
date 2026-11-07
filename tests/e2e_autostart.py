@@ -1,11 +1,10 @@
-"""Isolated live test for Windows autostart.
+"""Isolated live test for opt-in Windows autostart.
 
 Uses a test-only Run value name and an isolated HAPPYPATH_DATA_DIR. The real
 HappyPath Run value and real statistics are never read or changed.
 """
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
@@ -45,6 +44,11 @@ def stored_path() -> str | None:
         return None
 
 
+def seed_value(path: str) -> None:
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+        winreg.SetValueEx(key, VALUE_NAME, 0, winreg.REG_SZ, path)
+
+
 def stop(process: subprocess.Popen | None) -> None:
     if process is None or process.poll() is not None:
         return
@@ -71,6 +75,11 @@ def launch(profile: str) -> subprocess.Popen:
     return process
 
 
+def assert_running(process: subprocess.Popen) -> None:
+    time.sleep(4)
+    check(process.poll() is None, "app remains running")
+
+
 def main() -> None:
     check(EXE.exists(), f"release binary exists: {EXE}")
     shutil.rmtree(TEST_ROOT, ignore_errors=True)
@@ -78,28 +87,20 @@ def main() -> None:
     delete_value()
     current = None
     try:
-        current = launch("default-on")
-        deadline = time.monotonic() + 25
-        while stored_path() is None and time.monotonic() < deadline:
-            if current.poll() is not None:
-                raise AssertionError(f"HappyPath exited early with {current.returncode}")
-            time.sleep(0.2)
-        actual = stored_path()
-        check(actual is not None, "autostart is enabled by default")
-        expected = os.path.normcase(os.path.normpath(str(EXE)))
-        received = os.path.normcase(os.path.normpath(actual))
-        check(received == expected, "Run value points to the current executable")
+        current = launch("default-off")
+        assert_running(current)
+        check(stored_path() is None, "ordinary startup leaves autostart disabled")
+        check(not DATA_DIR.joinpath("config.json").exists(), "no redundant opt-out config is created")
         stop(current)
         current = None
 
-        DATA_DIR.joinpath("config.json").write_text(
-            json.dumps({"autostart_off": True}), encoding="utf-8"
-        )
-        delete_value()
-        current = launch("opt-out")
-        time.sleep(4)
-        check(current.poll() is None, "app remains running with autostart opted out")
-        check(stored_path() is None, "explicit opt-out survives restart")
+        # Simulate a previous explicit opt-in. Ordinary startup must not rewrite
+        # the stored path anymore; only the tray checkbox may change this value.
+        previous_path = r"C:\previous-installation\happypath.exe"
+        seed_value(previous_path)
+        current = launch("existing-opt-in")
+        assert_running(current)
+        check(stored_path() == previous_path, "startup never rewrites an existing opt-in value")
     finally:
         stop(current)
         delete_value()

@@ -15,6 +15,7 @@ import time
 import urllib.request
 import ctypes
 from ctypes import wintypes
+from datetime import datetime
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -155,6 +156,9 @@ def main() -> None:
     DATA_DIR.mkdir(parents=True)
     current = None
     js_errors: list[str] = []
+    # The widget intentionally tracks the five working days only. On Saturday
+    # and Sunday a completed session accumulates in history but fills no segment.
+    expected_won_days = 0 if datetime.now().weekday() >= 5 else 1
 
     with sync_playwright() as playwright:
         try:
@@ -191,7 +195,7 @@ def main() -> None:
             page.locator('#widget[data-status="completed"]').wait_for(timeout=8_000)
             check(page.locator("#main-line").inner_text() == "Рубеж взят", "timer reaches daily milestone")
             check(page.locator("#icon img").count() == 1, "moon demon remains in completed state")
-            check(page.locator(".day.won").count() == 1, "completed day fills one weekday segment")
+            check(page.locator(".day.won").count() == expected_won_days, "completed day fills the expected weekday segments")
             check("1 сессия" in page.locator("#widget").get_attribute("title"), "all-time counter increments")
 
             first_events = events()
@@ -215,7 +219,7 @@ def main() -> None:
             page2.on("pageerror", lambda error: js_errors.append(str(error)))
             page2.locator('#widget[data-status="completed"]').wait_for(timeout=10_000)
             check("2 сессии" in page2.locator("#widget").get_attribute("title"), "restart restores and accumulates statistics")
-            check(page2.locator(".day.won").count() == 1, "two sessions on one day still fill one weekday segment")
+            check(page2.locator(".day.won").count() == expected_won_days, "two sessions keep the expected weekday segments")
 
             completed = [item for item in events() if item["event"] == "session_completed"]
             check(len(completed) == 2, "restart writes second completion without duplicating first")

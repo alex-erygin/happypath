@@ -346,13 +346,6 @@ fn main() {
             }
         }))
         .setup(|app| {
-            // Как в Hunger Timer: автозапуск включён по умолчанию, путь обновляется
-            // при каждом старте, а явный отказ пользователя сохраняется в config.json.
-            #[cfg(windows)]
-            if !stats::autostart_disabled(&stats::data_dir()) {
-                autostart::set(true);
-            }
-
             if let Some(win) = app.get_webview_window("main") {
                 #[cfg(windows)]
                 let positioned = if let Ok(size) = win.outer_size() {
@@ -444,7 +437,6 @@ fn main() {
                     "autostart" => {
                         let new = !autostart::enabled();
                         autostart::set(new);
-                        let _ = stats::set_autostart_disabled(&stats::data_dir(), !new);
                         let _ = autostart_handle.set_checked(new);
                     }
                     "quit" => app.exit(0),
